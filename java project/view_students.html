@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Public Student List | Student Fee System</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* Read-only specific overrides */
+        .container {
+            max-width: 1200px;
+        }
+
+        .card {
+            animation: fadeInUp 0.8s ease-out forwards;
+            border-top: 4px solid var(--primary);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="bg">
+        <div class="blob b1"></div>
+        <div class="blob b3"></div>
+    </div>
+
+    <div class="topbar">
+        <div class="container">
+            <h1>Public Student Records</h1>
+            <p class="subtitle">Live data synced from Firebase</p>
+        </div>
+    </div>
+
+    <div class="container">
+
+        <div class="card">
+            <div class="card-head row">
+                <div>
+                    <h2>Registered Students</h2>
+                    <p class="muted">Read-only view of all records</p>
+                </div>
+                <div class="search">
+                    <input type="text" id="searchInput" placeholder="Search records...">
+                </div>
+            </div>
+
+            <div class="table-wrap">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Name</th>
+                            <th>ID</th>
+                            <th>Course</th>
+                            <th class="right">Fee</th>
+                            <th class="right">Paid</th>
+                            <th class="right">Remaining</th>
+                            <th>Status</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody id="viewTbody">
+                        <tr>
+                            <td colspan="9" class="center muted" style="padding: 40px;">Loading live data...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="footer">
+            &copy; 2026 Student Fee System • Live View
+        </div>
+
+    </div>
+
+    <!-- Firebase Compat SDKs (Required for file:// protocol) -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js"></script>
+
+    <script>
+        const tbody = document.getElementById("viewTbody");
+        const searchInput = document.getElementById("searchInput");
+        let students = [];
+
+        // Wait for Firebase to init
+        if (typeof db !== 'undefined') {
+            initListener();
+        } else {
+            console.error("Firebase DB not initialized!");
+            tbody.innerHTML = `<tr><td colspan="9" class="center muted error">Error connecting to database.</td></tr>`;
+        }
+
+        function initListener() {
+            // Fetch Data Real-time
+            db.collection("students").orderBy("date", "desc").onSnapshot((snapshot) => {
+                students = snapshot.docs.map(doc => doc.data());
+                renderTable(students);
+            }, (error) => {
+                console.error("Error getting documents: ", error);
+                tbody.innerHTML = `<tr><td colspan="9" class="center muted error">Permission denied or connection error.</td></tr>`;
+            });
+        }
+
+        function renderTable(list) {
+            tbody.innerHTML = "";
+            if (list.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="9" class="center muted">No records found.</td></tr>`;
+                return;
+            }
+
+            list.forEach((s, idx) => {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td>${idx + 1}</td>
+                    <td><b>${escapeHtml(s.studentName)}</b></td>
+                    <td>${escapeHtml(s.studentId)}</td>
+                    <td>${escapeHtml(s.courseName)}</td>
+                    <td class="right">${money(s.fee)}</td>
+                    <td class="right">${money(s.paid)}</td>
+                    <td class="right">${money(s.remaining)}</td>
+                    <td>${badgeForAgreement(s.agreement)}</td>
+                    <td>${escapeHtml(s.date)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function money(n) {
+            const num = Number(n);
+            if (!Number.isFinite(num)) return "$0.00";
+            return "$" + num.toFixed(2);
+        }
+
+        function badgeForAgreement(val) {
+            if (val === "Full Payment") return `<span class="badge full">Full</span>`;
+            if (val === "Installment") return `<span class="badge inst">Installment</span>`;
+            if (val === "Scholarship") return `<span class="badge scho">Scholarship</span>`;
+            if (val === "Not Paid") return `<span class="badge warn">Not Paid</span>`;
+            return `<span class="badge">${val}</span>`;
+        }
+
+        function escapeHtml(str) {
+            return String(str ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        // Search
+        searchInput.addEventListener("input", (e) => {
+            const val = e.target.value.toLowerCase();
+            const filtered = students.filter(s =>
+                s.studentName.toLowerCase().includes(val) ||
+                s.studentId.toLowerCase().includes(val) ||
+                s.courseName.toLowerCase().includes(val)
+            );
+            renderTable(filtered);
+        });
+    </script>
+</body>
+
+</html>
